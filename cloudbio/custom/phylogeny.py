@@ -7,7 +7,6 @@ from fabric.contrib.files import *
 
 from cloudbio.custom.shared import _if_not_installed, _make_tmp_dir
 
-@_if_not_installed("tracer")
 def install_tracer(env):
     """A program for analysing results from Bayesian MCMC programs such as BEAST & MrBayes.
     http://tree.bio.ed.ac.uk/software/tracer/
@@ -15,19 +14,21 @@ def install_tracer(env):
     version = "1.5"
     install_dir = os.path.join(env.system_install, "bioinf")
     final_exe = os.path.join(env.system_install, "bin", "tracer")
-    if not exists(final_exe):
+    if env.safe_exists(final_exe):
+        return
+    if not env.safe_exists(final_exe):
         with _make_tmp_dir() as work_dir:
             with cd(work_dir):
-                run("wget -O Tracer_v{0}.tgz 'http://tree.bio.ed.ac.uk/download.php?id=80&num=3'".format(
-                        version))
-                run("tar xvzf Tracer_v{0}.tgz".format(version))
-                run("chmod a+x Tracer_v{0}/bin/tracer".format(version))
+                env.safe_run("wget -O Tracer_v{0}.tgz 'http://tree.bio.ed.ac.uk/download.php?id=80&num=3'".format(
+                    version))
+                env.safe_run("tar xvzf Tracer_v{0}.tgz".format(version))
+                env.safe_run("chmod a+x Tracer_v{0}/bin/tracer".format(version))
                 env.safe_sudo("mkdir -p %s" % install_dir)
                 env.safe_sudo("rm -rvf %s/tracer" % install_dir)
                 env.safe_sudo("mv -f Tracer_v%s %s/tracer" % (version, install_dir))
                 env.safe_sudo("ln -sf %s/tracer/bin/tracer %s" % (install_dir, final_exe))
 
-@_if_not_installed("beast")
+@_if_not_installed("beast -help")
 def install_beast(env):
     """BEAST: Bayesian MCMC analysis of molecular sequences.
     http://beast.bio.ed.ac.uk
@@ -35,11 +36,11 @@ def install_beast(env):
     version = "1.7.4"
     install_dir = os.path.join(env.system_install, "bioinf")
     final_exe = os.path.join(env.system_install, "bin", "beast")
-    if not exists(final_exe):
+    if not env.safe_exists(final_exe):
         with _make_tmp_dir() as work_dir:
             with cd(work_dir):
-                run("wget http://beast-mcmc.googlecode.com/files/BEASTv%s.tgz" % version)
-                run("tar xvzf BEASTv%s.tgz" % version)
+                env.safe_run("wget -c http://beast-mcmc.googlecode.com/files/BEASTv%s.tgz" % version)
+                env.safe_run("tar xvzf BEASTv%s.tgz" % version)
                 env.safe_sudo("mkdir -p %s" % install_dir)
                 env.safe_sudo("rm -rvf %s/beast" % install_dir)
                 env.safe_sudo("mv -f BEASTv%s %s/beast" % (version, install_dir))

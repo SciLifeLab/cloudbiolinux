@@ -1,7 +1,7 @@
 ---
 # Configuration file defining R specific libraries that are installed 
 # via CRAN and Bioconductor.
-cranrepo: http://watson.nci.nih.gov/cran_mirror/
+cranrepo: http://cran.fhcrc.org/
 cran:
  - abind
  - ape
@@ -11,6 +11,7 @@ cran:
  - bitops
  - boot
  - car
+ - caret
  - caTools
  - chron
  - class
@@ -23,6 +24,7 @@ cran:
  - devtools
  - digest
  - effects
+ - FactoMineR
  - flashClust
  - foreign
  - gdata
@@ -79,11 +81,13 @@ cran:
  - spatial
  - sqldf
  - statmod
+ - stringr
  - strucchange
  - survival
  - testthat
  - vegan
  - vgam
+ - VennDiagram 
  - vr
  - XML
  - xtable
@@ -172,6 +176,7 @@ bioc:
  - MEDIPS
  - multtest
  - MotIV
+ - mzR
  - oneChannelGUI
  #- org.At.tair.db
  #- org.Ce.eg.db
@@ -211,4 +216,5 @@ bioc:
  - VariantAnnotation
  - vsn
  - widgetTools
+ - xcms
  - zlibbioc

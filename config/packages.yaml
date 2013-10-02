@@ -32,17 +32,19 @@ minimal:
     - subversion
     - mercurial
     - bzr
-    - darcs
+    #- darcs # pulls in postfix mail configuration.
   build:
-    - make
+    - cmake
     - gcc
     - g++
     - gfortran
+    - libtool
+    - make
     - patch
-    - cmake
-    - swig
+    - pkg-config
   util:
     - axel
+    - gawk
     - rsync
     - openssh-server
     - screen
@@ -80,6 +82,11 @@ libraries:
   - xz-utils
   - liblzma-dev
   - zlib1g-dev
+  - libnetcdf-dev
+documentation:
+  - texlive-latex-base
+  - texlive-latex-recommended
+  - texlive-latex-extra
 desktop:
   #Packages to support a remote desktop
   all:
@@ -114,21 +121,14 @@ programming:
     - emacsen-common
     - exuberant-ctags
     - gedit
-  documentation:
-    - texlive-latex-base
-    - texlive-latex-recommended
-    - texlive-latex-extra
   build:
-    - xfsprogs
-    - stow
-    - rsync
-    - python-software-properties
-    - protobuf-compiler
     - libgtk2.0-dev
-    - stow
-    - rsync
-    - python-software-properties
     - protobuf-compiler
+    - python-software-properties
+    - stow
+    - swig
+    - rsync
+    - xfsprogs
   filesystem:
     - libfuse-dev
     - fuse-utils
@@ -161,7 +161,7 @@ programming:
     - pbuilder
     - unzip
   virtual:
-    - virtualbox-4.1
+    - virtualbox-4.2
     - dkms
   util:
     - mc
@@ -208,16 +208,15 @@ amazon:
   - ec2-api-tools
   - python-vm-builder-ec2
 python:
-  meta:
-    - python
-    - python-dev
-    - python-setuptools
-    - python-distutils-extra
-    - python3
-    - python3-dev
-    - python-pip
-  wrappers:
-    - python-rpy
+  - python
+  - python-dev
+  - python-distutils-extra
+  - python-pip
+  - python-setuptools
+  - python-virtualenv
+  - python3
+  - python3-dev
+  - python-rpy
 ruby:
   - ruby1.9.1 # default Ruby install
   - ruby1.9.1-dev
@@ -235,14 +234,17 @@ perl:
   - perl-tk
   - parrot
   - parrot-devel
+  - cpanminus
+  - libextutils-autoinstall-perl
 java:
   # - sun-java6-bin # Sun Java removed from Ubuntu package repositories
   # - sun-java6-jre # Package 'sun-java6-jre' has no installation candidate
   # - sun-java6-jdk Package 'sun-java6-jdk' has no installation candidate
-  - openjdk-6-jdk
-  - openjdk-6-jre
   - openjdk-7-jdk
   - openjdk-7-jre
+java_extras:
+  - openjdk-6-jdk
+  - openjdk-6-jre
   - ant
   - libbiojava-java
   - libbiojava-java-demos
@@ -250,7 +252,6 @@ java:
   - maven2
   - libjline-java
   - libjhdf5-java
-  - clojure
   - jruby
   - jython
   - scala
@@ -289,11 +290,9 @@ databases:
     - mongodb-10gen
     - couchdb
     - tokyocabinet-bin
-    - libtokyocabinet9
     - libtokyocabinet-dev
   hdf:
-    - libhdf5-7
-    - libhdf5-dev
+    - libhdf5-serial-dev
 math:
   - prover9
   - octave
@@ -359,17 +358,16 @@ bio_nextgen:
   - plink
   - last-align
   - tabix
-  - samtools # now up-to-date again
+  # - samtools # only on 0.18, prefer custom build
 bio_sequencing:
   #- bio-linux-assembly-conversion-tools # broken Depends: bio-linux-staden
   - bio-linux-cap3
   - bio-linux-dust
   - bio-linux-lucy
-  - bio-linux-mira
-  - bio-linux-mira-3rd-party
   # - bio-linux-staden # broken Depends: ia32-libs
   # - bio-linux-stars # broken Depends: bio-linux-staden
   - bio-linux-tablet
+  # - mira-assembler # broken on ubuntu 13.04
 bio_annotation:
   - mcl
   - predictprotein
@@ -401,22 +399,63 @@ bio_visualization:
   - rasmol
   # - bio-linux-clcsequenceviewer # Awaiting fix
 bio_proteomics:
-  # Needed for TPP
-  - xsltproc
-  - libxml-sax-expat-perl
-  - libgd2-xpm-dev
-  - libbz2-dev
-  # Needed for percolator
-  - libxerces-c3.1
-  - libxerces-c-dev
-  - xsdcxx
-  - libboost-dev
-  - libboost-filesystem-dev
-  - libboost-system-dev
-  - libsqlite3-0
-  - libboost-serialization-dev
-  - zlib1g-dev
-  - libboost-dev
+  all:
+    # Required for protk
+    - libxml2-dev
+    - libreadline-dev
+    - libxslt-dev
+    
+    # Required for protvis
+    - python-virtualenv
+    - python-setuptools
+    - libpng12-dev
+    - python-dev
+    - libexpat1-dev
+    - libboost-dev
+
+    # Needed for TPP
+    - xsltproc
+    - libxml-sax-expat-perl
+    - libgd2-xpm-dev
+    - libbz2-dev
+    - gnuplot
+
+    # Needed for percolator
+    - libxerces-c3.1
+    - libxerces-c-dev
+    - xsdcxx
+    - libboost-dev
+    - libboost-filesystem-dev
+    - libboost-system-dev
+    - libsqlite3-0
+    - libboost-serialization-dev
+    - zlib1g-dev
+    - libboost-dev
+
+    # needed for 32bit execs distributed with searchgui.
+    # - ia32-libs ## Doesn't play well with dependencies of gnuplot, TODO: Find more specific lib.     
+
+    # needed for building OpenMS
+    - libtool
+    - qt4-dev-tools
+    - libqtwebkit-dev
+    - libqtwebkit4
+
+     # Needed for psm-eval
+    - libyaml-dev
+
+    # Needed for RVM
+    - libbison-dev
+    - ncurses-dev 
+    - automake 
+    - libtool  
+    - bison
+    - subversion
+    - libgdbm-dev
+    - libffi-dev
+    - libsqlite3-dev
+    - sqlite3
+
 bio_proteomics_wine:
   - wine
 bio_utils:
@@ -443,7 +482,7 @@ phylogeny:
     - mrbayes
     - njplot
     - tree-puzzle
-    - bio-linux-arb
+    #- bio-linux-arb # problematic install questions
     - bio-linux-archaeopteryx
     - bio-linux-cytoscape
     - bio-linux-dendroscope
@@ -500,7 +539,10 @@ cloudman:
     - libcurl4-openssl-dev
     - libxml2-dev
     - mime-support
-    # Required to get HTCondor
+    # Required for novnc
+    - vnc4server
+  ubuntu_quantal:
+    # Required to get HTCondor, not available on 12.04 (latest LTS release).
     - condor
 galaxy:
   all:
@@ -509,8 +551,6 @@ galaxy:
     - default-jdk
     - python-rpy
     - xvfb
-    # Parallel file download (used by the Galaxy ObjectStore)
-    - axel
     # Required by Freebayes
     - cmake
     # Required by BWA
@@ -519,13 +559,8 @@ galaxy:
     - libncurses5-dev
     # Required by Compute q-values
     - liblzma-dev
-    - r-base
-    - r-base-core
-    - r-base-dev
-    - r-cran-lattice
-    - r-cran-qvalue
-    # Required by HVIS
-    - r-bioc-hilbertvis
+    # Parallel file download (used by the Galaxy ObjectStore)
+    - axel
     # Required by various R modules
     - tcl-dev
     # Required by various R modules
@@ -535,11 +570,29 @@ galaxy:
     - pdfjam
     - python-scipy
     - libsparsehash-dev
+
+    # Latest python-rpy not currently compatible with R 3.0.1 at least on precise (presumably 
+    # quantal as well), hack below is to specify an older version of R compabile with python-rpy.    
+    #- r-base
+    #- r-base-core
+    #- r-base-dev
+    - r-cran-lattice
+    - r-cran-qvalue
+    # Required by HVIS
+    - r-bioc-hilbertvis
+  ubuntu_quantal:
+    - "r-base-core=3.0.0-2quantal"
+    - "r-base-dev=3.0.0-2quantal"
+  ubuntu_precise:
+    - "r-base-core=3.0.0-2precise"
+    - "r-base-dev=3.0.0-2precise"        
 galaxyp:
   all:
      # Required for protk
      - libxml2-dev
      - libreadline-dev
+     - libxslt-dev
+     
      # Required for protvis
      - python-virtualenv
      - python-setuptools
@@ -553,6 +606,7 @@ galaxyp:
      - libxml-sax-expat-perl
      - libgd2-xpm-dev
      - libbz2-dev
+     - gnuplot
 
      # Needed for percolator
      - libxerces-c3.1
@@ -566,9 +620,33 @@ galaxyp:
      - zlib1g-dev
      - libboost-dev
 
-     # Needed for nbic galaxy stuff
+     # needed for 32bit execs distributed with searchgui.
+     # - ia32-libs ## Doesn't play well with dependencies of gnuplot, TODO: Find more specific lib.     
+
+     # needed for building OpenMS
+     - libtool
+     - qt4-dev-tools
+     - libqtwebkit-dev
+     - libqtwebkit4
+
+     # Needed for nbic galaxy database utilities
      - liblog-log4perl-perl
      - libswiss-perl
+
+     # Needed  for psm-eval
+     - libyaml-dev
+
+     # Needed for RVM
+     - libbison-dev
+     - ncurses-dev 
+     - automake 
+     - libtool  
+     - bison
+     - subversion
+     - libgdbm-dev
+     - libffi-dev
+     - libsqlite3-dev
+     - sqlite3
 
 # To do -- in Deb Med but not propogated
 # squizz

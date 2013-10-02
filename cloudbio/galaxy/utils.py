@@ -1,7 +1,9 @@
 from fabric.api import sudo
 from fabric.contrib.files import exists
 
+
 def _read_boolean(env, name, default):
+    ## TODO: Replace calls to this with calls to cloudbio.custom.shared version
     property_str = env.get(name, str(default))
     return property_str.upper() in ["TRUE", "YES"]
 
@@ -12,8 +14,9 @@ def _chown_galaxy(env, path):
     """
     chown_command = "chown --recursive %s:%s %s"
     galaxy_user = env.get("galaxy_user", "galaxy")
-    if exists(path):
-        sudo(chown_command % (galaxy_user, galaxy_user, path))
+    if env.safe_exists(path):
+        env.safe_sudo(chown_command % (galaxy_user, galaxy_user, path))
+
 
 def _dir_is_empty(path):
     """

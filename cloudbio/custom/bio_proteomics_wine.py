@@ -1,16 +1,15 @@
-from fabric.api import put, cd, run
-from fabric.contrib.files import exists
+from fabric.api import cd
 
-from shared import (_make_tmp_dir, _fetch_and_unpack, _get_install, _make_copy, _write_to_file, _get_bin_dir)
+from shared import (_make_tmp_dir, _fetch_and_unpack, _write_to_file, _get_bin_dir)
 
 import os
 
 
 def install_proteomics_wine_env(env):
     script_src = env.get("setup_proteomics_wine_env_script")
-    script_dest = "%s/bin" % env.get("system_install")
-    if not exists(script_dest):
-        put(script_src, script_dest, mode=0755, use_sudo=True)
+    script_dest = "%s/bin/setup_proteomics_wine_env.sh" % env.get("system_install")
+    if not env.safe_exists(script_dest):
+        env.safe_put(script_src, script_dest, mode=0755, use_sudo=True)
 
 
 def install_multiplierz(env):
@@ -19,6 +18,8 @@ def install_multiplierz(env):
     in C:\Python26.
     """
     wine_user = _get_wine_user(env)
+
+    install_proteomics_wine_env(env)
     env.safe_sudo("setup_proteomics_wine_env.sh", user=wine_user)
     with _make_tmp_dir() as work_dir:
         with cd(work_dir):
@@ -29,7 +30,9 @@ def install_multiplierz(env):
 
 
 def install_proteowizard(env):
-    url = "http://teamcity.labkey.org:8080/repository/download/bt36/75846:id/pwiz-bin-windows-x86-vc100-release-3_0_4309.tar.bz2?guest=1"
+    build_id = "85131"
+    version = "3_0_4624"
+    url = "http://teamcity.labkey.org:8080/repository/download/bt36/%s:id/pwiz-bin-windows-x86-vc100-release-%s.tar.bz2?guest=1" % (build_id, version)
     install_dir = env.get("install_dir")
     share_dir = "%s/share/proteowizard" % install_dir
     with _make_tmp_dir() as work_dir:
@@ -38,6 +41,19 @@ def install_proteowizard(env):
             env.safe_sudo("cp -r . '%s'" % share_dir)
     proteowizard_apps = ["msconvert", "msaccess", "chainsaw", "msdiff", "mspicture", "mscat", "txt2mzml", "MSConvertGUI", "Skyline", "Topograph", "SeeMS"]
     for app in proteowizard_apps:
+        setup_wine_wrapper(env, "%s/%s" % (share_dir, app))
+
+
+def install_morpheus(env):
+    url = "http://www.chem.wisc.edu/~coon/Downloads/Morpheus/latest/Morpheus.zip"  # TODO:
+    install_dir = env.get("install_dir")
+    share_dir = "%s/share/morpheus" % install_dir
+    with _make_tmp_dir() as work_dir:
+        with cd(work_dir):
+            _fetch_and_unpack(url, need_dir=False)
+            env.safe_sudo("cp -r Morpheus '%s'" % share_dir)
+    morpheus_exes = ["morpheus_cl.exe", "Morpheus.exe"]
+    for app in morpheus_exes:
         setup_wine_wrapper(env, "%s/%s" % (share_dir, app))
 
 

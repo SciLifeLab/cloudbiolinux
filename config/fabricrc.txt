@@ -6,9 +6,16 @@
 #   fab -f data_fabfile.py -H your_machine -c your_fabricrc.txt install_data_s3:your_biodata.yaml
 
 # -- Details about the operating system
+
+## If target machine is Ubuntu or CentOS, the following defaults should allow CloudBioLinux to 
+## automatically determine the correct settings. For other operating systems (e.g. Debian or ScientificLinux)
+## please override distribution (and dist_name in case of Debian).
+distribution = __auto__
+dist_name = __auto__
+
 ## Ubuntu
-distribution = ubuntu
-dist_name = quantal
+#distribution = ubuntu
+#dist_name = quantal
 ## Centos
 #distribution = centos
 ## Debian
@@ -17,24 +24,24 @@ dist_name = quantal
 
 # -- Installation details
 
-# Unset to avoid CloudBioLinux customizations like setup scripts;
+# Set to get CloudBioLinux customizations like setup scripts;
 # or set to different edition to get specific customizations
-edition = cloudbiolinux
+#edition = cloudbiolinux
 
 # Whether to clean the system for EC2 AMI preparation;
 # do not set on vagrant or local machines
 is_ec2_image = false
 
 # Global installation directory for packages and standard programs
-system_install = /usr
+system_install = /usr/local
 
 # Local install directory for versioned software that will not
 # be included in the path by default
-local_install = ~/install
+local_install = /usr/local/share
 
 # Shell to be used by CBL scripts during runtime
 shell_config = ~/.bashrc
-shell = /bin/bash --noprofile -i -l -c
+shell = /bin/bash -i -c
 
 # Global setting for using sudo; allows installation of custom packages
 # by non-privileged users.
@@ -89,6 +96,10 @@ data_files = /mnt/biodata
 # Location of Galaxy's .loc files
 #galaxy_loc_files = /mnt/biodata/galaxy/galaxy-data
 
+# Location of files required by Galaxy Trackster
+# This path needs to match what will be set in Galaxy's universe_wsgi.ini
+#galaxy_len_files = /mnt/galaxy/configuration_data/len
+
 # Galaxy requires Java tools to have their jar files places in a specific
 # directory, so specify it here.
 #galaxy_jars_dir = /mnt/galaxyTools/galaxy-central/tool-data/shared/jars
@@ -98,7 +109,7 @@ data_files = /mnt/biodata
 
 # Specify a custom location to a YAML file containing a list of tools to
 # install as Galaxy dependencies
-#galaxy_tools_conf = contrib/cloudman/tools.yaml
+#galaxy_tools_conf = $__contrib_dir__/cloudman/tools.yaml
 
 # Location where (some?!) Galaxy dependency tools should be installed
 #galaxy_tools_dir = /mnt/galaxyTools/tools
@@ -113,6 +124,9 @@ data_files = /mnt/biodata
 #galaxy_indices_mount = /mnt/biodata
 #extra_nfs_exports = comma,separate,desired,paths
 
+## Defaults for CloudMan LWR
+puppet_lwr_user = galaxy
+puppet_lwr_destination = /mnt/galaxy/lwr
 
 # -- Tool-specific configurations
 
@@ -122,3 +136,17 @@ data_files = /mnt/biodata
 
 # Picard home
 picard_home = /usr/share/java/picard
+
+# -- novnc configuration options
+# Configure novnc along with CloudMan, disabled
+# by default for now.
+#configure_novnc = False
+# Where to install novnc
+#novnc_install_dir = /opt/novnc
+# Password used by novnc to connect to vncserver.
+#vnc_password = cl0udbi0l1nux
+# Set vnc_user if different than env.user
+#vnc_user=ubuntu
+#vnc_display=1
+#vnc_depth=16
+#vnc_geometry=1024x768
