@@ -34,6 +34,7 @@ minimal:
     - bzr
     #- darcs # pulls in postfix mail configuration.
   build:
+    - clang
     - cmake
     - gcc
     - g++
@@ -131,7 +132,6 @@ programming:
     - xfsprogs
   filesystem:
     - libfuse-dev
-    - fuse-utils
   libraries:
     - tcl-dev
     - tk-dev
@@ -142,7 +142,6 @@ programming:
     - libboost-dev
     - libboost-python-dev
     - libboost-thread-dev
-    - libgd2-xpm
     - libgd2-xpm-dev
     - libgnomecanvas2-0
     - libgnomecanvas2-dev
@@ -220,8 +219,6 @@ python:
 ruby:
   - ruby1.9.1 # default Ruby install
   - ruby1.9.1-dev
-  - ruby1.8
-  - ruby1.8-dev
 r:
   - r-base
   - r-base-core
@@ -264,7 +261,7 @@ erlang:
   - erlang-manpages
   - erlang-mode
 haskell:
-  - ghc6
+  - ghc
   - cabal-install
   - c2hs
 databases:
@@ -319,10 +316,10 @@ bio_general:
   - bio-linux-catchall
   # - bio-linux-emboss
   - bio-linux-readseq
-  - emboss
-  - emboss-data
-  - emboss-lib
-  - jemboss
+  # - emboss # Broken on 13.10
+  # - emboss-data # Broken on 13.10
+  # - emboss-lib # broken on 13.10
+  # - jemboss # Broken on 13.10
   - ugene
 bio_search:
   - blast2
@@ -375,10 +372,9 @@ bio_annotation:
   - bio-linux-artemis
   - bio-linux-big-blast
   - bio-linux-cd-hit
-  - bio-linux-estscan
-  - bio-linux-glimmer3
+  # - bio-linux-estscan  # broken on ubuntu 14.04 (#163)
   - bio-linux-jprofilegrid
-  - bio-linux-msatfinder
+  # - bio-linux-msatfinder # broken on 13.10
 #   - bio-linux-prot4est - broken, fix in progress
   - bio-linux-rbs-finder
   - bio-linux-transterm-hp
@@ -404,7 +400,7 @@ bio_proteomics:
     - libxml2-dev
     - libreadline-dev
     - libxslt-dev
-    
+
     # Required for protvis
     - python-virtualenv
     - python-setuptools
@@ -433,7 +429,7 @@ bio_proteomics:
     - libboost-dev
 
     # needed for 32bit execs distributed with searchgui.
-    # - ia32-libs ## Doesn't play well with dependencies of gnuplot, TODO: Find more specific lib.     
+    # - ia32-libs ## Doesn't play well with dependencies of gnuplot, TODO: Find more specific lib.
 
     # needed for building OpenMS
     - libtool
@@ -446,9 +442,9 @@ bio_proteomics:
 
     # Needed for RVM
     - libbison-dev
-    - ncurses-dev 
-    - automake 
-    - libtool  
+    - ncurses-dev
+    - automake
+    - libtool
     - bison
     - subversion
     - libgdbm-dev
@@ -464,7 +460,7 @@ bio_utils:
   - bio-linux-bldp-files
   - bio-linux-sampledata
   - bio-linux-taxinspector
-  - bio-linux-xcut
+  # - bio-linux-xcut # hash mismatch
 phylogeny_testing:
   # new packages in testing (Debian 'wheezy')
   all:
@@ -534,13 +530,13 @@ cloudman:
     # Required for s3fs
     - libfuse-dev
     - libfuse2
-    - fuse-utils
     - pkg-config
     - libcurl4-openssl-dev
     - libxml2-dev
     - mime-support
     # Required for novnc
     - vnc4server
+    - glusterfs-client
   ubuntu_quantal:
     # Required to get HTCondor, not available on 12.04 (latest LTS release).
     - condor
@@ -571,8 +567,8 @@ galaxy:
     - python-scipy
     - libsparsehash-dev
 
-    # Latest python-rpy not currently compatible with R 3.0.1 at least on precise (presumably 
-    # quantal as well), hack below is to specify an older version of R compabile with python-rpy.    
+    # Latest python-rpy not currently compatible with R 3.0.1 at least on precise (presumably
+    # quantal as well), hack below is to specify an older version of R compabile with python-rpy.
     #- r-base
     #- r-base-core
     #- r-base-dev
@@ -585,14 +581,14 @@ galaxy:
     - "r-base-dev=3.0.0-2quantal"
   ubuntu_precise:
     - "r-base-core=3.0.0-2precise"
-    - "r-base-dev=3.0.0-2precise"        
+    - "r-base-dev=3.0.0-2precise"
 galaxyp:
   all:
      # Required for protk
      - libxml2-dev
      - libreadline-dev
      - libxslt-dev
-     
+
      # Required for protvis
      - python-virtualenv
      - python-setuptools
@@ -621,7 +617,7 @@ galaxyp:
      - libboost-dev
 
      # needed for 32bit execs distributed with searchgui.
-     # - ia32-libs ## Doesn't play well with dependencies of gnuplot, TODO: Find more specific lib.     
+     # - ia32-libs ## Doesn't play well with dependencies of gnuplot, TODO: Find more specific lib.
 
      # needed for building OpenMS
      - libtool
@@ -638,9 +634,9 @@ galaxyp:
 
      # Needed for RVM
      - libbison-dev
-     - ncurses-dev 
-     - automake 
-     - libtool  
+     - ncurses-dev
+     - automake
+     - libtool
      - bison
      - subversion
      - libgdbm-dev

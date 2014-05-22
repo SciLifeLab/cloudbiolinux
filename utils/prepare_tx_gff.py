@@ -6,17 +6,7 @@ Usage, from within the main genome directory of your organism:
 
 requires these python packages which may not be installed
 ---------------------------------------------------------
-rnaseqlib
-git@github.com:yarden/rnaseqlib.git
-
-
-gffutils (the refactor branch):
-https://github.com/daler/gffutils/tree/refactor
-
-MISO:
-git@github.com:yarden/MISO.git
-
-mysql-python (via pip)
+mysql-python (via conda)
 pandas (via conda)
 
 """
@@ -28,65 +18,195 @@ import datetime
 import subprocess
 import tempfile
 import glob
+from argparse import ArgumentParser
 
-import MySQLdb
-import rnaseqlib.utils as utils
-import rnaseqlib.events.defineEvents as def_events
 import gffutils
-import time
+
+try:
+    import MySQLdb
+except:
+    MySQLdb = None
 
 
 from bcbio.utils import chdir, safe_makedir, file_exists
 
-def build_ucsc_map(ensembl_chrs, mt_chr):
-    """Build mapping of Ensembl to UCSC names for standard chromosomes.
-    """
-    out = {}
-    for c in ensembl_chrs:
-        out[str(c)] = "chr{0}".format(c)
-    out[mt_chr] = "chrM"
-    return out
 
 # ##  Version and retrieval details for Ensembl and UCSC
-ensembl_release = "73"
+ensembl_release = "74"
 base_ftp = "ftp://ftp.ensembl.org/pub/release-{release}/gtf"
 
-Build = collections.namedtuple("Build", ["taxname", "fname", "biomart_name",
-                                         "ucsc_map"])
-build_info = {
-    "hg19": Build("homo_sapiens", "Homo_sapiens.GRCh37.{release}.gtf.gz",
-                  "hsapiens_gene_ensembl", None),
-    "mm9": Build("mus_musculus", "Mus_musculus.NCBIM37.67.gtf.gz",
-                 "mmusculus_gene_ensembl", None),
-    "mm10": Build("mus_musculus", "Mus_musculus.GRCm38.{release}.gtf.gz",
-                 "mmusculus_gene_ensembl", None)}
+# taxname:
+# biomart_name: name of ensembl gene_id on biomart
+# ucsc_map:
+# fbase: the base filename for ensembl files using this genome
 
-ucsc_db= "genome-mysql.cse.ucsc.edu"
-ucsc_user="genome"
+Build = collections.namedtuple("Build", ["taxname", "biomart_name",
+                                         "ucsc_map", "fbase"])
+
+def ucsc_ensembl_map_via_download(org_build):
+    ensembl_dict_file = get_ensembl_dict(org_build)
+    ucsc_dict_file = get_ucsc_dict(org_build)
+    ensembl_dict = parse_sequence_dict(ensembl_dict_file)
+    ucsc_dict = parse_sequence_dict(ucsc_dict_file)
+    return ensembl_to_ucsc(ensembl_dict, ucsc_dict)
+
+def ensembl_to_ucsc(ensembl_dict, ucsc_dict):
+    name_map = {}
+    for md5, name in ensembl_dict.items():
+        name_map[name] = ucsc_dict.get(md5, None)
+    return name_map
+
+def ucsc_ensembl_map_via_query(org_build):
+    """Retrieve UCSC to Ensembl name mappings from UCSC MySQL database.
+    """
+    # if MySQLdb is not installed, figure it out via download
+    if not MySQLdb:
+        return ucsc_ensembl_map_via_download(org_build)
+
+    db = MySQLdb.connect(host=ucsc_db, user=ucsc_user, db=org_build)
+    cursor = db.cursor()
+    cursor.execute("select * from ucscToEnsembl")
+    ucsc_map = {}
+    for ucsc, ensembl in cursor.fetchall():
+        # workaround for GRCh37/hg19 additional haplotype contigs.
+        # Coordinates differ between builds so do not include these regions.
+        if org_build == "hg19" and "hap" in ucsc:
+            continue
+        else:
+            ucsc_map[ensembl] = ucsc
+    return ucsc_map
+
+
+build_info = {
+    "hg19": Build("homo_sapiens", "hsapiens_gene_ensembl",
+                  ucsc_ensembl_map_via_query,
+                  "Homo_sapiens.GRCh37." + ensembl_release),
+    "mm9": Build("mus_musculus", "mmusculus_gene_ensembl",
+                 ucsc_ensembl_map_via_query,
+                 "Mus_musculus.NCBIM37.67"),
+    "mm10": Build("mus_musculus", "mmusculus_gene_ensembl",
+                  ucsc_ensembl_map_via_query,
+                  "Mus_musculus.GRCm38." + ensembl_release),
+    "rn5": Build("rattus_norvegicus", None,
+                 ucsc_ensembl_map_via_download,
+                 "Rattus_norvegicus.Rnor_5.0." + ensembl_release),
+    "GRCh37": Build("homo_sapiens", "hsapiens_gene_ensembl",
+                    None,
+                    "Homo_sapiens.GRCh37." + ensembl_release),
+    "canFam3": Build("canis_familiaris", None,
+                     ucsc_ensembl_map_via_download,
+                     "Canis_familiaris.CanFam3.1." + ensembl_release)
+}
+
+ucsc_db = "genome-mysql.cse.ucsc.edu"
+ucsc_user = "genome"
+
+
+def parse_sequence_dict(fasta_dict):
+    def _tuples_from_line(line):
+        name = line.split("\t")[1].split(":")[1]
+        md5 = line.split("\t")[4].split(":")[1]
+        return md5, name
+    with open(fasta_dict) as dict_handle:
+        tuples = [_tuples_from_line(x) for x in dict_handle if "@SQ" in x]
+        md5_dict = {x[0]: x[1] for x in tuples}
+    return md5_dict
+
+class SequenceDictParser(object):
+
+    def __init__(self, fname):
+        self.fname = fname
+
+    def _get_sequences_in_genome_dict(self):
+        with open(self.fname) as genome_handle:
+            sequences = [self._sequence_from_line(x) for x in genome_handle if "@SQ" in x]
+        return sequences
+
+    def _sequence_from_line(self, line):
+        name = line.split("\t")[1].split(":")[1]
+        md5 = line.split("\t")[4].split(":")[1]
+        return md5, name
+
+
+def get_ensembl_dict(org_build):
+    genome_dict = org_build + ".dict"
+    if not os.path.exists(genome_dict):
+        genome = _download_ensembl_genome(org_build)
+        org_fa = org_build + ".fa"
+        shutil.move(genome, org_fa)
+        genome_dict = make_fasta_dict(org_fa)
+    return genome_dict
+
+def get_ucsc_dict(org_build):
+    fa_dict = os.path.join(os.getcwd(), os.pardir, "seq", org_build + ".dict")
+    if not file_exists(fa_dict):
+        fa_file = os.path.splitext(fa_dict)[0] + ".fa"
+        fa_dict = make_fasta_dict(fa_file)
+    return fa_dict
+
+
+def make_fasta_dict(fasta_file):
+    dict_file = os.path.splitext(fasta_file)[0] + ".dict"
+    if not os.path.exists(dict_file):
+        picard_jar = os.path.join(PICARD_DIR, "CreateSequenceDictionary.jar")
+        subprocess.check_call("java -jar {picard_jar} R={fasta_file} "
+                              "O={dict_file}".format(**locals()), shell=True)
+    return dict_file
+
+
+def _download_ensembl_genome(org_build):
+    build = build_info[org_build]
+    fname = build.fbase + ".dna_sm.toplevel.fa.gz"
+    dl_url = ("ftp://ftp.ensembl.org/pub/release-{release}/"
+                   "fasta/{taxname}/dna/{fname}").format(release=ensembl_release,
+                                                         taxname=build.taxname,
+                                                         fname=fname)
+    out_file = os.path.splitext(os.path.basename(dl_url))[0]
+    if not os.path.exists(out_file):
+        subprocess.check_call(["wget", dl_url])
+        subprocess.check_call(["gunzip", os.path.basename(dl_url)])
+    return out_file
+
+def prepare_gff_db(gff_file):
+    """
+    make a database of a GTF file with gffutils
+    """
+    dbfn = gff_file + ".db"
+    if not os.path.exists(dbfn):
+        db = gffutils.create_db(gff_file, dbfn=dbfn, keep_order=False,
+                                merge_strategy='merge', force=False,
+                                infer_gene_extent=False)
+    return dbfn
 
 # ## Main driver functions
 
-def main(org_build):
+def main(org_build, gtf_file=None):
     work_dir = os.path.join(os.getcwd(), org_build, "tmpcbl")
-    out_dir = os.path.join(os.getcwd(), org_build, "rnaseq-%s" % datetime.datetime.now().strftime("%Y-%m-%d"))
+    out_dir = os.path.join(os.getcwd(), org_build,
+                           "rnaseq-%s" % datetime.datetime.now().strftime("%Y-%m-%d"))
     tophat_dir = os.path.join(out_dir, "tophat")
     safe_makedir(work_dir)
     with chdir(work_dir):
-        build = build_info[org_build]
-        tx_gff = prepare_tx_gff(build, org_build)
-        gtf_to_refflat(tx_gff)
-        mask_gff = prepare_mask_gtf(tx_gff)
-        rrna_gtf = prepare_rrna_gtf(tx_gff)
+        if not gtf_file:
+            build = build_info[org_build]
+            gtf_file = prepare_tx_gff(build, org_build)
+        db = prepare_gff_db(gtf_file)
+        gtf_to_refflat(gtf_file)
+        mask_gff = prepare_mask_gtf(gtf_file)
+        rrna_gtf = prepare_rrna_gtf(gtf_file)
         gtf_to_interval(rrna_gtf, org_build)
-        make_miso_events(tx_gff, org_build)
-        prepare_tophat_index(tx_gff, org_build)
-        cleanup(work_dir, out_dir)
+        prepare_tophat_index(gtf_file, org_build)
+        cleanup(work_dir, out_dir, org_build)
     tar_dirs = [out_dir]
     upload_to_s3(tar_dirs, org_build)
 
-def cleanup(work_dir, out_dir):
-    db_files = glob.glob(os.path.join(work_dir, "*.db"))
-    map(os.remove, db_files)
+
+def cleanup(work_dir, out_dir, org_build):
+    try:
+        os.remove(os.path.join(work_dir, org_build + ".dict"))
+        os.remove(os.path.join(work_dir, org_build + ".fa"))
+    except:
+        pass
     shutil.move(work_dir, out_dir)
 
 def upload_to_s3(tar_dirs, org_build):
@@ -100,40 +220,11 @@ def upload_to_s3(tar_dirs, org_build):
                            os.path.join("annotation", os.path.basename(tarball)),
                            "--public"])
 
-def make_miso_annotation(tables_dir, output_dir, org_build):
-    """
-    Make GFF annotation. Takes GFF tables directory
-    and an output directory.
-
-    Adapted from
-    https://github.com/yarden/rnaseqlib/
-    """
-    tables_dir = utils.pathify(tables_dir)
-    output_dir = utils.pathify(output_dir)
-    print "Making GFF alternative events annotation..."
-    print " - UCSC tables read from: %s" % (tables_dir)
-    print " - Output dir: %s" % (output_dir)
-    t1 = time.time()
-    table_fnames = def_events.load_ucsc_tables(tables_dir)
-    num_tables = len(table_fnames)
-    if num_tables == 0:
-        raise Exception("No UCSC tables found in %s." % (tables_dir))
-    print "Loaded %d UCSC tables." % (num_tables)
-    def_events.defineAllSplicing(tables_dir, output_dir,
-                                 flanking="commonshortest",
-                                 multi_iso=False,
-                                 sanitize=False,
-                                 genome_label=org_build)
-    t2 = time.time()
-    print "Took %.2f minutes to make the annotation." \
-        % ((t2 - t1)/60.)
-
-
 def genepred_to_UCSC_table(genepred):
     header = ["#bin", "name", "chrom", "strand",
               "txStart", "txEnd", "cdsStart", "cdsEnd",
               "exonCount", "exonStarts", "exonEnds", "score",
-              "name2",	"cdsStartStat",	"cdsEndStat",
+              "name2", "cdsStartStat", "cdsEndStat",
               "exonFrames"]
     out_file = os.path.splitext(genepred)[0] + ".UCSCTable"
     if file_exists(out_file):
@@ -205,8 +296,45 @@ def prepare_tophat_index(gtf, org_build):
     cmd = ("tophat --transcriptome-index {tophat_dir} -G {gtf} "
            "-o {out_dir} {bowtie_dir} {fastq}")
     subprocess.check_call(cmd.format(**locals()), shell=True)
+    make_large_exons_gtf(gtf)
     shutil.rmtree(out_dir)
     os.remove(fastq)
+
+
+def make_large_exons_gtf(gtf_file):
+    """
+    Save all exons > 1000 bases to a separate file for estimating the
+    insert size distribution
+    """
+    out_dir = os.path.abspath(os.path.join(os.path.dirname(gtf_file), "tophat"))
+    out_file = os.path.join(out_dir, "large_exons.gtf")
+
+    if file_exists(out_file):
+        return out_file
+
+    dbfn = gtf_file + ".db"
+    if not file_exists(dbfn):
+        db = gffutils.create_db(gtf_file, dbfn=dbfn, keep_order=True,
+                                merge_strategy='merge', force=False,
+                                infer_gene_extent=False)
+    else:
+        db = gffutils.FeatureDB(dbfn)
+    processed_count = 0
+    kept_exons = []
+    for exon in db.features_of_type('exon'):
+        processed_count += 1
+        if processed_count % 10000 == 0:
+            print("Processed %d exons." % processed_count)
+        if exon.end - exon.start > 1000:
+            kept_exons.append(exon)
+
+    with open(out_file, "w") as out_handle:
+        print("Writing %d large exons to %s." % (processed_count,
+                                                 out_file))
+        for exon in kept_exons:
+            out_handle.write(str(exon) + "\n")
+    return out_file
+
 
 def _create_dummy_fastq():
     read = ("@HWI-ST333_0178_FC:5:1101:1107:2112#ATCTCG/1\n"
@@ -219,10 +347,7 @@ def _create_dummy_fastq():
     return fn
 
 def gtf_to_interval(gtf, build):
-    fa_dict = os.path.join(os.getcwd(), os.pardir, "seq", build + ".dict")
-    if not file_exists(fa_dict):
-        raise IOError("%s is not found, please make with "
-                      "CreateSequenceDictionary." % fa_dict)
+    fa_dict = get_ucsc_dict(build)
     db = _get_gtf_db(gtf)
     out_file = os.path.splitext(gtf)[0] + ".interval_list"
     if file_exists(out_file):
@@ -246,7 +371,7 @@ def prepare_mask_gtf(gtf):
     """
 
     mask_biotype = ["rRNA", "Mt_rRNA", "misc_RNA", "snRNA", "snoRNA",
-                    "tRNA","Mt_tRNA"]
+                    "tRNA", "Mt_tRNA"]
     mask_chrom = ["MT"]
     out_file = os.path.join(os.path.dirname(gtf), "ref-transcripts-mask.gtf")
     if file_exists(out_file):
@@ -290,33 +415,18 @@ def gtf_to_genepred(gtf):
     subprocess.check_call(cmd.format(**locals()), shell=True)
     return out_file
 
-def high_abudance_transcripts(build):
-    """Get identifiers for high abundance transcriptions using R biomaRt.
-    """
-    robjects.r.assign("biomart.org", build.biomart_name)
-    robjects.r('''
-      library(biomaRt)
-      mart <- useMart("ensembl", dataset=biomart.org)
-      attrs <- c("ensembl_transcript_id")
-      filters <- c("biotype")
-      filter.types <- c("Mt_rRNA", "rRNA")
-      result <- getBM(attributes=attrs, filters=filters, values=filter.types,
-                      mart=mart)
-      result <- unique(result)
-    ''')
-    # get first column of data frame: the transcript IDs
-    return set(robjects.r["result"][0])
-
-# ## Retrieve GFF file from Ensembl and map to UCSC coordinates
-
 def prepare_tx_gff(build, org_name):
     """Prepare UCSC ready transcript file given build information.
     """
     ensembl_gff = _download_ensembl_gff(build)
-    ucsc_name_map = (_query_for_ucsc_ensembl_map(org_name)
-                     if build.ucsc_map is None else build.ucsc_map)
-    tx_gff = _remap_gff(ensembl_gff, ucsc_name_map)
-    os.remove(ensembl_gff)
+    # if we need to do the name remapping
+    if build.ucsc_map:
+        ucsc_name_map = build.ucsc_map(org_name)
+        tx_gff = _remap_gff(ensembl_gff, ucsc_name_map)
+        os.remove(ensembl_gff)
+    else:
+        tx_gff = "ref-transcripts.gtf"
+        os.rename(ensembl_gff, tx_gff)
     return tx_gff
 
 def _remap_gff(base_gff, name_map):
@@ -333,26 +443,11 @@ def _remap_gff(base_gff, name_map):
                     out_handle.write("\t".join([ucsc_name] + parts[1:]))
     return out_file
 
-def _query_for_ucsc_ensembl_map(org_name):
-    """Retrieve UCSC to Ensembl name mappings from UCSC MySQL database.
-    """
-    db = MySQLdb.connect(host=ucsc_db, user=ucsc_user, db=org_name)
-    cursor = db.cursor()
-    cursor.execute("select * from ucscToEnsembl")
-    ucsc_map = {}
-    for ucsc, ensembl in cursor.fetchall():
-        # workaround for GRCh37/hg19 additional haplotype contigs.
-        # Coordinates differ between builds so do not include these regions.
-        if org_name == "hg19" and "hap" in ucsc:
-            continue
-        else:
-            ucsc_map[ensembl] = ucsc
-    return ucsc_map
-
 def _download_ensembl_gff(build):
     """Given build details, download and extract the relevant ensembl GFF.
     """
-    dl_url = "/".join([base_ftp, build.taxname, build.fname]).format(release=ensembl_release)
+    fname = build.fbase + ".gtf.gz"
+    dl_url = "/".join([base_ftp, build.taxname, fname]).format(release=ensembl_release)
     out_file = os.path.splitext(os.path.basename(dl_url))[0]
     if not os.path.exists(out_file):
         subprocess.check_call(["wget", dl_url])
@@ -367,4 +462,15 @@ def _get_gtf_db(gtf):
     return gffutils.FeatureDB(db_file)
 
 if __name__ == "__main__":
-    main(*sys.argv[1:])
+    parser = ArgumentParser(description="Prepare the transcriptome files for an "
+                            "organism.")
+    parser.add_argument("--gtf",
+                        help="Optional GTF file (instead of downloading from Ensembl.",
+                        default=None),
+    parser.add_argument("picard",
+                        help="Path to Picard")
+    parser.add_argument("org_build", help="Build of organism to run.")
+    args = parser.parse_args()
+    global PICARD_DIR
+    PICARD_DIR = args.picard
+    main(args.org_build, args.gtf)

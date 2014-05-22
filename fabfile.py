@@ -33,7 +33,7 @@ from cloudbio import libraries
 from cloudbio.utils import _setup_logging, _configure_fabric_environment
 from cloudbio.cloudman import _cleanup_ec2
 from cloudbio.cloudbiolinux import _cleanup_space
-from cloudbio.custom import shared, system
+from cloudbio.custom import shared
 from cloudbio.package.shared import _yaml_to_packages
 from cloudbio.package import brew
 from cloudbio.package import (_configure_and_install_native_packages,
@@ -93,11 +93,13 @@ def _perform_install(target=None, flavor=None, more_custom_add=None):
                 custom_add[k] = vs
     if target is None or target == "packages":
         env.keep_isolated = getattr(env, "keep_isolated", "false").lower() in ["true", "yes"]
-        # can only install native packages if we have sudo access.
-        if env.use_sudo:
-            _configure_and_install_native_packages(env, pkg_install)
-        elif not env.keep_isolated:
-            _connect_native_packages(env, pkg_install, lib_install)
+        # Only touch system information if we're not an isolated installation
+        if not env.keep_isolated:
+            # can only install native packages if we have sudo access or are root
+            if env.use_sudo or env.safe_run_output("whoami").strip() == "root":
+                _configure_and_install_native_packages(env, pkg_install)
+            else:
+                _connect_native_packages(env, pkg_install, lib_install)
         if env.nixpkgs:  # ./doc/nixpkgs.md
             _setup_nix_sources()
             _nix_packages(pkg_install)
@@ -107,6 +109,8 @@ def _perform_install(target=None, flavor=None, more_custom_add=None):
         _provision_chef_recipes(pkg_install, custom_ignore)
     if target is None or target == "puppet_classes":
         _provision_puppet_classes(pkg_install, custom_ignore)
+    if target is None or target == "brew":
+        install_brew(flavor=flavor, automated=True)
     if target is None or target == "libraries":
         _do_library_installs(lib_install)
     if target is None or target == "post_install":
@@ -280,14 +284,16 @@ def _install_custom(p, pkg_to_group=None):
     fn = _custom_install_function(env, p, pkg_to_group)
     fn(env)
 
-def install_brew(p=None, flavor=None):
+def install_brew(p=None, version=None, flavor=None, automated=False):
     """Top level access to homebrew/linuxbrew packages.
     p is a package name to install, or all configured packages if not specified.
     """
-    _setup_logging(env)
-    _configure_fabric_environment(env, flavor, ignore_distcheck=True)
-    system.install_homebrew(env)
+    if not automated:
+        _setup_logging(env)
+        _configure_fabric_environment(env, flavor, ignore_distcheck=True)
     if p is not None:
+        if version:
+            p = "%s==%s" % (p, version)
         brew.install_packages(env, packages=[p])
     else:
         pkg_install = _read_main_config()[0]
@@ -331,6 +337,7 @@ def _read_main_config():
     with open(yaml_file) as in_handle:
         full_data = yaml.load(in_handle)
     packages = full_data.get('packages', [])
+    packages = env.edition.rewrite_config_items("main_packages", packages)
     libraries = full_data.get('libraries', [])
     custom_ignore = full_data.get('custom_ignore', [])
     custom_add = full_data.get("custom_additional")
@@ -344,19 +351,25 @@ def _read_main_config():
 # ### Library specific installation code
 
 def _python_library_installer(config):
-    """Install python specific libraries using easy_install.
+    """Install python specific libraries using pip, conda and easy_install.
     Handles using isolated anaconda environments.
     """
     if shared._is_anaconda(env):
+        conda_bin = shared._conda_cmd(env)
         for pname in env.flavor.rewrite_config_items("python", config.get("conda", [])):
-            env.safe_run("{0} install --yes {1}".format(shared._conda_cmd(env), pname))
+            env.safe_run("{0} install --yes {1}".format(conda_bin, pname))
         cmd = env.safe_run
+        with settings(warn_only=True):
+            cmd("%s -U distribute" % os.path.join(os.path.dirname(conda_bin), "easy_install"))
     else:
-        version_ext = "-%s" % env.python_version_ext if env.python_version_ext else ""
-        env.safe_sudo("easy_install%s -U pip" % version_ext)
+        pip_bin = shared._pip_cmd(env)
+        ei_bin = pip_bin.replace("pip", "easy_install")
+        env.safe_sudo("%s -U pip" % ei_bin)
+        with settings(warn_only=True):
+            env.safe_sudo("%s -U distribute" % ei_bin)
         cmd = env.safe_sudo
     for pname in env.flavor.rewrite_config_items("python", config['pypi']):
-        cmd("{0} install --upgrade {1}".format(shared._pip_cmd(env), pname))
+        cmd("{0} install --upgrade {1} --allow-unverified {1} --allow-external {1}".format(shared._pip_cmd(env), pname)) # fixes problem with packages not being in pypi
 
 def _ruby_library_installer(config):
     """Install ruby specific gems.

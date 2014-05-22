@@ -5,54 +5,69 @@ import ftplib
 import gzip
 import os
 import subprocess
+from argparse import ArgumentParser
+import re
+import shutil
 
-REMOTES = {"ftp": "ftp.ncbi.nih.gov",
-           "ftp_dir": "snp/organisms/mouse_10090/VCF/",
-           "org": "mm10"}
+FTP = "ftp.ncbi.nih.gov"
 
-def main():
-    work_dir = "tmp-dbsnp-%s" % REMOTES["org"]
+REMOTES = {"mm10": "snp/organisms/mouse_10090/VCF",
+           "canFam3": "snp/organisms/dog_9615/VCF/"}
+
+def main(org):
+    work_dir = "tmp-dbsnp-%s" % org
     if not os.path.exists(work_dir):
         os.makedirs(work_dir)
-    conn = ftplib.FTP(REMOTES["ftp"], "anonymous", "me@example.com")
-    conn.cwd(REMOTES["ftp_dir"])
+    conn = ftplib.FTP(FTP, "anonymous", "me@example.com")
+    conn.cwd(REMOTES[org])
 
     os.chdir(work_dir)
     files = []
     def add_files(x):
         if x.endswith("vcf.gz"):
-            files.append(get_file(x, REMOTES, conn))
+            files.append(get_file(x, REMOTES[org], conn))
     conn.retrlines("NLST", add_files)
-    out_file = "%s-dbSNP-%s.vcf" % (REMOTES["org"], datetime.datetime.now().strftime("%Y-%m-%d"))
+    out_file = "%s-dbSNP-%s.vcf" % (org, datetime.datetime.now().strftime("%Y-%m-%d"))
     with open(out_file, "w") as out_handle:
         for i, f in enumerate(karyotype_sort(files)):
             with gzip.open(f) as in_handle:
-                test = 0
                 for line in in_handle:
                     if line.startswith("#"):
                         if i == 0:
                             out_handle.write(line)
                     else:
-                        out_handle.write(fix_chrom(line))
+                        out_handle.write("\t".join(fix_info(fix_chrom(line.rstrip().split("\t")))) + "\n")
     subprocess.check_call(["bgzip", out_file])
+    shutil.move(out_file + ".gz", os.path.join(os.pardir, out_file + ".gz"))
+    os.chdir(os.pardir)
+    subprocess.check_call(["tabix", "-p", "vcf", out_file + ".gz"])
+    shutil.rmtree(work_dir)
 
-def fix_chrom(line):
-    parts = line.split("\t")
-    if parts[0] in [str(x) for x in range(1, 23)] + ["X", "Y"]:
+multi_whitespace = re.compile(r"\s+")
+
+def fix_info(parts):
+    """Fix the INFO file to remove whitespace.
+    """
+    parts[7] = multi_whitespace.sub("_", parts[7])
+    return parts
+
+def fix_chrom(parts):
+    MAX_CHROMOSOMES = 50
+    if parts[0] in [str(x) for x in range(1, MAX_CHROMOSOMES)] + ["X", "Y"]:
         new_chrom = "chr%s" % parts[0]
     elif parts[0] == "MT":
         new_chrom = "chrM"
     else:
-        raise NotImplementedError(line)
+        raise NotImplementedError(parts)
     parts[0] = new_chrom
-    return "\t".join(parts)
+    return parts
 
-def get_file(x, remotes, conn):
+def get_file(x, ftp_dir, conn):
     if not os.path.exists(x):
         print "Retrieving %s" % x
         with open(x, "wb") as out_handle:
-            conn = ftplib.FTP(remotes["ftp"], "anonymous", "me@example.com")
-            conn.cwd(remotes["ftp_dir"])
+            conn = ftplib.FTP(FTP, "anonymous", "me@example.com")
+            conn.cwd(ftp_dir)
             conn.retrbinary("RETR %s" % x, out_handle.write)
     return x
 
@@ -85,4 +100,8 @@ def karyotype_sort(xs):
     return sorted(xs, key=karyotype_keyfn)
 
 if __name__ == "__main__":
-    main()
+    parser = ArgumentParser(description="Prepare a dbSNP file from NCBI.")
+    parser.add_argument("org_build", choices=REMOTES.keys(),
+                        help="genome build")
+    args = parser.parse_args()
+    main(args.org_build)

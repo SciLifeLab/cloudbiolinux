@@ -5,9 +5,10 @@ packages:
   - minimal
   - libraries
   - python
-  - java
-  - r
   - ruby
+  - bio_general
+  - bio_alignment
+  - bio_search
   - bio_nextgen
 libraries:
-  - r-libs
+  - python-libs

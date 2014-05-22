@@ -8,12 +8,15 @@ http://cufflinks.cbcb.umd.edu/igenomes.html
 import os
 
 from fabric.api import cd
+
+from cloudbio.custom import shared
 from cloudbio.fabutils import warn_only
 
-
-VERSIONS = {"GRCh37": "-2013-08-21",
-            "hg19": "-2013-09-25",
-            "mm10": "-2013-09-20"}
+VERSIONS = {"rn5": "2014-05-02",
+            "GRCh37": "2014-05-02",
+            "hg19": "2014-05-02",
+            "mm10": "2014-05-02",
+            "canFam3": "2014-05-02"}
 
 def download_transcripts(genomes, env):
     folder_name = "rnaseq"
@@ -21,10 +24,10 @@ def download_transcripts(genomes, env):
     for (orgname, gid, manager) in ((o, g, m) for (o, g, m) in genomes
                                     if m.config.get("rnaseq", False)):
         version = VERSIONS.get(gid, "")
-        base_url = "https://s3.amazonaws.com/biodata/annotation/{gid}-rnaseq{version}.tar.xz"
+        base_url = "https://s3.amazonaws.com/biodata/annotation/{gid}-rnaseq-{version}.tar.xz"
         org_dir = os.path.join(genome_dir, orgname)
         tx_dir = os.path.join(org_dir, gid, folder_name)
-        version_dir = tx_dir + version
+        version_dir = "%s-%s" % (tx_dir, version)
         if not env.safe_exists(version_dir):
             with cd(org_dir):
                 has_rnaseq = _download_annotation_bundle(env, base_url.format(gid=gid, version=version), gid)
@@ -56,11 +59,8 @@ def _symlink_version(env, tx_dir, version_dir):
 def _download_annotation_bundle(env, url, gid):
     """Download bundle of RNA-seq data from S3 biodata/annotation
     """
-    tarball = os.path.basename(url)
-    if not env.safe_exists(tarball):
-        with warn_only():
-            env.safe_run("wget %s" % url)
-    if env.safe_exists(tarball):
+    tarball = shared._remote_fetch(env, url, allow_fail=True)
+    if tarball and env.safe_exists(tarball):
         env.logger.info("Extracting RNA-seq references: %s" % tarball)
         env.safe_run("xz -dc %s | tar -xpf -" % tarball)
         env.safe_run("rm -f %s" % tarball)

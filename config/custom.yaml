@@ -9,39 +9,29 @@ bio_general:
  - pgdspider
 bio_nextgen:
   alignment:
-    - bwa
     - bowtie
-    - bowtie2
     - gmap
     - lastz
     - mosaik
     # - perm # difficult build process with directory names
     - snap
-    - star
     #- stampy # no version names on tarballs
   utilities:
-    - bamtools
-    - bedtools
-    - biobambam
-    - cram
     - dwgsim
-    - fastqc
     - fastq_screen
-    - fastx_toolkit
     - ogap
     - rnaseqc
-    # - solexaqa
     - varianttools
-    - vcftools
+    - disambiguate
+    - alientrimmer
   analysis:
     - cufflinks
     # - echo # build problems on ubuntu 12.10
     - picard
-    - samtools
-    - sambamba
     - shrec
     - tophat
-    # - vep # lots of timeout failures on download
+    - vep
+    - featurecounts
   assembly:
     - abyss
     - cortex_var
@@ -50,33 +40,25 @@ bio_nextgen:
     - trinity
     - velvet
   sv:
-    - delly
     - hydra
-    - lumpy
     - freec
   variant:
     - bcbio_variation
     - crisp
-    - freebayes
     - gatk
     #- gatk_protected
     - gemini
     - grabix
     - mutect
-    - pbgzip
-    - tabix
     - tassel
     - snpeff
     - stacks
     - varscan
-    - vcflib
   chip:
     - macs
   needs_64bit:
     - ucsc_tools
     - bfast
-    - novoalign
-    - novosort
     - plink_seq
 bio_proteomics:
   - transproteomic_pipeline
@@ -94,9 +76,7 @@ bio_proteomics_wine:
   - proteowizard
   - morpheus
 cloudman:
-  - nginx
-  - proftpd
-  - sge
+  - cloudman
   - novnc
 galaxy:
   - galaxy_webapp
@@ -105,10 +85,10 @@ galaxy_tools:
 galaxyp:
   - galaxy_protk
   - protvis
-distributed:
-  - gnu_parallel
-  - pydoop
-  - seal
+# Pydoop and seal need update and should only be installed on cloud systems
+#distributed:
+#  - pydoop
+#  - seal
 system:
   - homebrew
   - s3fs
@@ -123,12 +103,15 @@ phylogeny:
   - beast
 #Viral Cloud Resource (VCR) - JCVI's Viral Genomic Pipelines on the cloud
 vcr:
+  - galaxy_vcr
   - viralassembly
   - viralassembly_cleanall
   - viralvigor
   - viralvigor_test
   - viralvigor_validate
   - viralvigor_cleanall
+  - vicvb
+  - vicvb_cleanall
 # ToDo -- test on 64bit with bfast
 #- dnaa
 #- srma

@@ -12,6 +12,7 @@ Handles:
     - safe_sed: Run sed command.
 """
 import hashlib
+import os
 import re
 import shutil
 
@@ -26,9 +27,10 @@ SUDO_ENV_KEEPS += ["http_proxy", "https_proxy"]  # Required for local sudo to wo
 def local_exists(path, use_sudo=False):
     func = env.safe_sudo if use_sudo else env.safe_run
     cmd = 'test -e "$(echo %s)"' % path
+    cmd_symbolic = 'test -h "$(echo %s)"' % path
     with settings(hide('everything'), warn_only=True):
         env.lcwd = env.cwd
-        return not func(cmd).failed
+        return (not func(cmd).failed) or (not func(cmd_symbolic).failed)
 
 def run_local(use_sudo=False, capture=False):
     def _run(command, *args, **kwags):
@@ -147,6 +149,11 @@ def local_append(filename, text, use_sudo=False, partial=False, escape=True, she
         line = line.replace("'", r"'\\''") if escape else line
         func("echo '%s' >> %s" % (line, _expand_path(filename)))
 
+def run_output(*args, **kwargs):
+    if not 'shell' in kwargs:
+        kwargs['shell'] = False
+    return run(*args, **kwargs)
+
 def configure_runsudo(env):
     """Setup env variable with safe_sudo and safe_run,
     supporting non-privileged users and local execution.
@@ -169,20 +176,31 @@ def configure_runsudo(env):
         env.safe_append = append
         env.safe_exists = exists
         env.safe_run = run
-        env.safe_run_output = run
-    if getattr(env, "use_sudo", "true").lower() in ["true", "yes"]:
-        env.use_sudo = True
-        if env.is_local:
-            env.safe_sudo = run_local(True)
+        env.safe_run_output = run_output
+    if isinstance(getattr(env, "use_sudo", "true"), basestring):
+        if getattr(env, "use_sudo", "true").lower() in ["true", "yes"]:
+            env.use_sudo = True
+            if env.is_local:
+                env.safe_sudo = run_local(True)
+            else:
+                env.safe_sudo = sudo
         else:
-            env.safe_sudo = sudo
-    else:
-        env.use_sudo = False
-        if env.is_local:
-            env.safe_sudo = run_local()
-        else:
-            env.safe_sudo = run
+            env.use_sudo = False
+            if env.is_local:
+                env.safe_sudo = run_local()
+            else:
+                env.safe_sudo = run
 
+def find_cmd(env, cmd, args):
+    """Retrieve location of a command, checking in installation directory.
+    """
+    local_cmd = os.path.join(env.system_install, "bin", cmd)
+    for cmd in [local_cmd, cmd]:
+        with quiet():
+            test_version = env.safe_run("%s %s" % (cmd, args))
+        if test_version.succeeded:
+            return cmd
+    return None
 
 try:
     from fabric.api import quiet
