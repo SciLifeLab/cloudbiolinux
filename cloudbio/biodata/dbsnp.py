@@ -39,7 +39,24 @@ def download_dbsnp(genomes, bundle_version, dbsnp_version):
                 _dbsnp_human(env, gid, manager, bundle_version, dbsnp_version)
             elif gid in ["mm10", "canFam3"]:
                 _dbsnp_custom(env, gid)
+            elif manager.data_source is "Ensembl":
+                _ensembl_vcf(env, gid, manager)
 
+def _ensembl_vcf(env, gid, manager):
+    """Fetch ensemble vcf file (available from release 71) and do tabix indexing
+    """
+    fname = "%s.vcf.gz" % (manager._organism)
+    download_url = manager._base_url
+    section = "variation/"
+    if not manager._section is "standard":
+        section = ""
+        fname = fname.lower()
+    download_url += "release-%s/%svcf/%s/%s" % (manager._release_number, 
+                    section, manager._organism.lower(), fname)
+    if not env.safe_exists(fname):
+        shared._remote_fetch(env, download_url)
+        env.safe_run("tabix -f -p vcf %s" % fname)
+ 
 def _dbsnp_custom(env, gid):
     """Retrieve resources for dbsnp builds from custom S3 biodata bucket.
     """

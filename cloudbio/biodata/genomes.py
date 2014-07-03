@@ -219,8 +219,12 @@ class EnsemblGenome(_DownloadHelper):
             url = "ftp://ftp.ensembl.org/pub/"
         else:
             url = "ftp://ftp.ensemblgenomes.org/pub/%s/" % ensembl_section
+        self._base_url = url
         url += "release-%s/fasta/%s/dna/" % (release_number, organism.lower())
         self._url = url
+        self._organism = organism
+        self._release_number = release_number
+        self._section = ensembl_section
         release2 = ".%s" % release2 if release2 else ""
         self._get_file = "%s.%s%s.dna.toplevel.fa.gz" % (organism, name,
                 release2)
@@ -281,6 +285,8 @@ GENOMES_SUPPORTED = [
            ("Xtropicalis", "xenTro3", UCSCGenome("xenTro3")),
            ("Athaliana", "araTha_tair9", EnsemblGenome("plants", "6", "",
                "Arabidopsis_thaliana", "TAIR9")),
+           ("Athaliana", "araTha_tair10", EnsemblGenome("plants", "22", "22",
+               "Arabidopsis_thaliana", "TAIR10")),
            ("Dmelanogaster", "dm3", UCSCGenome("dm3")),
            ("Celegans", "WS210", EnsemblGenome("standard", "60", "60",
                "Caenorhabditis_elegans", "WS210")),
@@ -293,6 +299,9 @@ GENOMES_SUPPORTED = [
            ("Cfamiliaris_Dog", "canFam3", UCSCGenome("canFam3")),
            ("Cfamiliaris_Dog", "canFam2", UCSCGenome("canFam2")),
            ("Drerio_Zebrafish", "Zv9", UCSCGenome("danRer7")),
+           ("Drerio_Zebrafish", "Zv9_ensembl", EnsemblGenome("standard", "75", 
+                                                             "75", "Danio_rerio",
+                                                             "Zv9")),
            ("Ecaballus_Horse", "equCab2", UCSCGenome("equCab2")),
            ("Fcatus_Cat", "felCat3", UCSCGenome("felCat3")),
            ("Ggallus_Chicken", "galGal3", UCSCGenome("galGal3")),
