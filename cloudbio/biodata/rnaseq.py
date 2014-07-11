@@ -28,6 +28,13 @@ def download_transcripts(genomes, env):
         org_dir = os.path.join(genome_dir, orgname)
         tx_dir = os.path.join(org_dir, gid, folder_name)
         version_dir = "%s-%s" % (tx_dir, version)
+        if manager.data_source is "Ensembl":
+            if not env.safe_exists(tx_dir):
+                env.safe_run("mkdir %s" % tx_dir)
+            with cd(tx_dir):
+                _download_ensembl_gtf(env, manager)
+                _symlink_refgenome(env, gid, org_dir)
+            continue
         if not env.safe_exists(version_dir):
             with cd(org_dir):
                 has_rnaseq = _download_annotation_bundle(env, base_url.format(gid=gid, version=version), gid)
@@ -36,6 +43,17 @@ def download_transcripts(genomes, env):
         if version:
             _symlink_refgenome(env, gid, org_dir)
 
+def _download_ensembl_gtf(env, manager):
+    """Fetch ensembl gtf file for coresponding genome - release
+    """
+    fname = "%s.%s.%s.gtf" % (manager._organism, manager._name, manager._release_number)
+    download_url = manager._base_url
+    download_url += "release-%s/gtf/%s/%s" % (manager._release_number, 
+                    manager._organism.lower(), fname)
+    if not env.safe_exists(fname):
+        shared._remote_fetch(env, download_url+".gz")
+        env.safe_run("gunzip %s.gz" % fname)
+ 
 def _symlink_refgenome(env, gid, org_dir):
     """Provide symlinks back to reference genomes so tophat avoids generating FASTA genomes.
     """
@@ -46,7 +64,7 @@ def _symlink_refgenome(env, gid, org_dir):
                 for ext in ["", ".fai"]:
                     orig_seq = os.path.join(os.pardir, "seq", "%s.fa%s" % (gid, ext))
                     if env.safe_exists(orig_seq) and not env.safe_exists(os.path.basename(orig_seq)):
-                        env.safe_run("ln -s %s" % orig_seq)
+                        env.safe_run("ln -sf %s" % orig_seq)
 
 def _symlink_version(env, tx_dir, version_dir):
     """Symlink the expected base output directory to our current version.
@@ -54,7 +72,7 @@ def _symlink_version(env, tx_dir, version_dir):
     if env.safe_exists(tx_dir):
         env.safe_run("rm -rf %s" % tx_dir)
     with cd(os.path.dirname(version_dir)):
-        env.safe_run("ln -s %s %s" % (os.path.basename(version_dir), os.path.basename(tx_dir)))
+        env.safe_run("ln -sf %s %s" % (os.path.basename(version_dir), os.path.basename(tx_dir)))
 
 def _download_annotation_bundle(env, url, gid):
     """Download bundle of RNA-seq data from S3 biodata/annotation

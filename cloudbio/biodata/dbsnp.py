@@ -39,7 +39,24 @@ def download_dbsnp(genomes, bundle_version, dbsnp_version):
                 _dbsnp_human(env, gid, manager, bundle_version, dbsnp_version)
             elif gid in ["mm10", "canFam3"]:
                 _dbsnp_custom(env, gid)
+            elif manager.data_source is "Ensembl":
+                _ensembl_vcf(env, gid, manager)
 
+def _ensembl_vcf(env, gid, manager):
+    """Fetch ensemble vcf file (available from release 71) and do tabix indexing
+    """
+    fname = "%s.vcf.gz" % (manager._organism)
+    download_url = manager._base_url
+    section = "variation/"
+    if not manager._section is "standard":
+        section = ""
+        fname = fname.lower()
+    download_url += "release-%s/%svcf/%s/%s" % (manager._release_number, 
+                    section, manager._organism.lower(), fname)
+    if not env.safe_exists(fname):
+        shared._remote_fetch(env, download_url)
+        env.safe_run("tabix -f -p vcf %s" % fname)
+ 
 def _dbsnp_custom(env, gid):
     """Retrieve resources for dbsnp builds from custom S3 biodata bucket.
     """
@@ -65,6 +82,8 @@ def _dbsnp_human(env, gid, manager, bundle_version, dbsnp_version):
             _download_broad_bundle(manager.dl_name, bundle_version, dl_name, ext)
     _download_cosmic(gid)
     _download_repeats(gid)
+    _download_dbnsfp(env, gid, manager.config)
+    _download_ancestral(env, gid, manager.config)
     # XXX Wait to get this by default until it is used more widely
     #_download_background_vcf(gid)
 
@@ -108,6 +127,51 @@ def _download_cosmic(gid):
             shared._remote_fetch(env, url)
         if not env.safe_exists(fname + ".tbi"):
             shared._remote_fetch(env, url + ".tbi")
+
+def _download_dbnsfp(env, gid, gconfig):
+    """Download and prepare dbNSFP functional prediction resources if configured.
+
+    Feeds into VEP for annotating VCF files:
+    https://sites.google.com/site/jpopgen/dbNSFP
+    https://github.com/ensembl-variation/VEP_plugins/blob/master/dbNSFP.pm
+    """
+    version = "2.5"
+    url = "http://dbnsfp.houstonbioinformatics.org/dbNSFPzip/dbNSFPv%s.zip" % version
+    if gconfig.get("dbnsfp"):
+        outfile = "dbNSFP_v%s.gz" % (version)
+        if gid == "GRCh37":  # download and prepare bgzipped output file
+            if not env.safe_exists(outfile):
+                zipfile = shared._remote_fetch(env, url, samedir=True)
+                outdir = "dbNSFPv%s" % version
+                env.safe_run("mkdir -p %s" % outdir)
+                env.safe_run("unzip %s -d %s" % (zipfile, outdir))
+                env.safe_run("cat %s/dbNSFP*_variant.chr* | bgzip -c > %s" % (outdir, outfile))
+                env.safe_run("rm -f %s/* && rmdir %s" % (outdir, outdir))
+                env.safe_run("rm -f %s" % (zipfile))
+            if not env.safe_exists(outfile + ".tbi"):
+                env.safe_run("tabix -s 1 -b 2 -e 2 -c '#' %s" % outfile)
+        elif gid == "hg19":  # symlink to GRCh37 download
+            if not env.safe_exists(outfile):
+                env.safe_run("ln -sf ../../GRCh37/variation/%s %s" % (outfile, outfile))
+            if not env.safe_exists(outfile + ".tbi"):
+                env.safe_run("ln -sf ../../GRCh37/variation/%s.tbi %s.tbi" % (outfile, outfile))
+
+def _download_ancestral(env, gid, gconfig):
+    """Download ancestral genome sequence for loss of function evaluation.
+
+    Used by LOFTEE VEP plugin: https://github.com/konradjk/loftee
+    """
+    base_url = "http://www.broadinstitute.org/~konradk/loftee/human_ancestor.fa.rz"
+    if gid == "GRCh37":
+        for ext in ["", ".fai"]:
+            outfile = os.path.basename(base_url) + ext
+            if not env.safe_exists(outfile):
+                shared._remote_fetch(env, base_url + ext, samedir=True)
+    elif gid == "hg19":  # symlink to GRCh37 download
+        for ext in ["", ".fai"]:
+            outfile = os.path.basename(base_url) + ext
+            if not env.safe_exists(outfile):
+                env.safe_run("ln -sf ../../GRCh37/variation/%s %s" % (outfile, outfile))
 
 def _download_background_vcf(gid):
     """Download background file of variant to use in calling.
