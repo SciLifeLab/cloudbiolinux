@@ -299,7 +299,7 @@ GENOMES_SUPPORTED = [
            ("Cfamiliaris_Dog", "canFam3", UCSCGenome("canFam3")),
            ("Cfamiliaris_Dog", "canFam2", UCSCGenome("canFam2")),
            ("Drerio_Zebrafish", "Zv9", UCSCGenome("danRer7")),
-           ("Drerio_Zebrafish", "Zv9_ensembl", EnsemblGenome("standard", "75", 
+           ("Drerio_Zebrafish", "Zv9.75", EnsemblGenome("standard", "75", 
                                                              "75", "Danio_rerio",
                                                              "Zv9")),
            ("Ecaballus_Horse", "equCab2", UCSCGenome("equCab2")),
