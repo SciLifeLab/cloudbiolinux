@@ -38,11 +38,9 @@ genomes:
     rnaseq: true
   - dbkey: dm3
     name: D melangogaster (dm3)
+  - dbkey: Zv9.75
+    name: Zebrafish (Zv9 Ensembl 75)
   - dbkey: araTha_tair9
-  - dbkey: Zv9_ensembl
-    name: Zebrafish (Zv9_ensembl)
-    dbsnp: true
-    rnaseq: true
     name: Arabidopsis thaliana (TAIR9)
   - dbkey: xenTro3
     name: X tropicalis (xenTro3)
